@@ -1,0 +1,53 @@
+---
+- name: "TEST 1"
+  hosts: # what hosts to run playbook on
+  become: yes
+  remote_user: # what user on Windows 2016 to remote into (cybe466)
+
+  tasks:
+
+    - name: Install bind9
+      ansible.builtin.apt:
+        name: bind9
+
+    - name: Copy new "named.conf.options" from Windows 2016 Server into /etc/bind/, backing up original
+      ansible.builtin.copy:
+        src: C:\Users\Administrator\Downloads\named.conf.options
+        dest: /etc/bind/named.conf.options
+        remote_src: yes
+        backup: yes
+
+    - name: Copy new "named.conf.default-zones" from Windows 2016 Server into /etc/bind/, backing up original
+      ansible.builtin.copy:
+        src: C:\Users\Administrator\Downloads\named.conf.default-zones
+        dest: /etc/bind/named.conf.default-zones
+        remote_src: yes
+        backup: yes
+
+    - name: Copy new "db.internal" from Windows 2016 Server into /etc/bind/, backing up original
+      ansible.builtin.copy:
+        src: C:\Users\Administrator\Downloads\db.internal
+        dest: /etc/bind/db.internal
+        remote_src: yes
+        backup: yes
+
+    - name: Copy new "hosts" from Windows 2016 Server into /etc/, backing up original
+      ansible.builtin.copy:
+        src: C:\Users\Administrator\Downloads\hosts
+        dest: /etc/hosts
+        remote_src: yes
+        backup: yes
+
+    - name: Restart bind9 service
+      ansible.builtin.service:
+        name: bind9
+        state: restarted
+
+
+    - name: Add a privileged user to Linux server
+      user:
+        name: cybe466grader
+        password: $6$1397b34612bae6d17d93ac20a484d741db2749713d912476fa64c0c77f1eb576d4fc34844c33603124f4bb439fdbf4a331397049cc8894679c7be8ebcc3ef581 # cybe466admin!
+        comment: CYBE466 Grader Admin User
+        uid: 1234
+        group: sudo
