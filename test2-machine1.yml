@@ -1,0 +1,93 @@
+---
+- name: "TEST 2 MACHINE 1"
+  hosts: localhost
+  become: yes
+
+  tasks:
+
+    - name: Install bind9
+      ansible.builtin.apt:
+        name: bind9
+
+    - name: Copy new "named.conf.options" into /etc/bind/, backing up original
+      ansible.builtin.copy:
+        src: named.conf.options
+        dest: /etc/bind/named.conf.options
+        backup: yes
+
+    - name: Copy new "named.conf.default-zones" into /etc/bind/, backing up original
+      ansible.builtin.copy:
+        src: named.conf.default-zones
+        dest: /etc/bind/named.conf.default-zones
+        backup: yes
+
+    - name: Copy new "db.internal" into /etc/bind/, backing up original
+      ansible.builtin.copy:
+        src: db.internal
+        dest: /etc/bind/db.internal
+        backup: yes
+
+    - name: Copy new "hosts" into /etc/, backing up original
+      ansible.builtin.copy:
+        src: hosts
+        dest: /etc/hosts
+        backup: yes
+
+    - name: Restart bind9 service
+      ansible.builtin.service:
+        name: bind9
+        state: restarted
+
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+
+    - name: UFW - deny all
+      community.general.ufw:
+        state: enabled
+        policy: deny
+
+    - name: UFW - allow incoming DNS from subnet
+      community.general.ufw:
+        rule: allow
+        src: *subnet/XX*
+        port: '53'
+
+    - name: UFW - allow incoming HTTP from the world
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: UFW - allow incoming HTTPS from the world
+      community.general.ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: UFW - allow incoming SSH from machine2
+      community.general.ufw:
+        rule: allow
+        src: *machine2 ip*
+        port: '22'
+
+    - name: UFW - enable ufw
+      community.general.ufw:
+        state: enabled
+
+    - name: Reconfigure netplan to use DNS server on machine1
+      ansible.builtin.copy:
+        src: 01-network-manager-all.yaml
+        dest: /etc/netplan/01-network-manager-all.yaml
+        backup: yes
+
+    - name: apply netplan changes
+      command: sudo netplan apply
+      ignore_errors: true
+
+    - name: update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400

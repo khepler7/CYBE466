@@ -1,0 +1,120 @@
+---
+- name: "TEST 2 MACHINE 1"
+  hosts: localhost
+  become: yes
+
+  tasks:
+
+    - name: Install apache2
+      ansible.builtin.apt:
+        name: apache2
+
+    - name: Enable HTTPS 
+      command: sudo a2ensite default-ssl; sudo a2enmod ssl
+      ignore_errors: true
+
+    - name: Configure www.kmh0071.internal file in /etc/apache2/sites-available/
+      ansible.builtin.copy:
+        src: www.kmh0071.internal
+        dest: /etc/apache2/sites-available/www.kmh0071.internal
+
+    - name: Create SSL certs and keys
+      command: sudo openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+      ignore_errors: true
+
+    - name: Make /srv/www.kmh0071.internal directory
+      ansible.builtin.file:
+        path: /srv/www.kmh0071.internal
+        state: directory
+        mode: '0755'
+
+    - name: Update permissions to have directory be owned by www-data user
+      ansible.builtin.file:
+        path: /srv/www.kmh0071.internal
+        state: directory
+        recurse: yes
+        owner: www-data
+
+    - name: Reconfigure /etc/apache2/apache2.conf file to serve from /srv/
+      ansible.builtin.copy:
+        src: apache2.conf
+        dest: /etc/apache2/apache2.conf
+        backup: yes
+
+    - name: Reconfigure /etc/apache2/sites-enabled/default-ssl.conf to use SSL certs and /srv/www.kmh0071.internal as its document root
+      ansible.builtin.copy:
+        src: default-ssl.conf
+        dest: /etc/apache2/sites-enabled/default-ssl.conf
+        backup: yes
+
+    - name: Move default index.html to /srv/www.kmh0071.internal
+      ansible.builtin.copy:
+        src: /var/www/html/index.html
+        dest: /srv/www.kmh0071.internal/index.html
+
+    - name: User a2ensite to enable site
+      command: sudo a2ensite default-ssl; sudo a2ensite www.kmh0071.internal
+      ignore_errors: true
+
+    - name: Configure php on web server
+      command: sudo apt-get install libapache2-mod-php; sudo a2enmod php7.4
+      ignore_errors: true
+
+    - name: Install ufw
+      ansible.builtin.apt:
+        name: ufw
+
+    - name: UFW - deny all
+      community.general.ufw:
+        state: enabled
+        policy: deny
+
+    - name: UFW - allow incoming DNS from subnet
+      community.general.ufw:
+        rule: allow
+        src: *subnet/XX*
+        port: '53'
+
+    - name: UFW - allow incoming HTTP from the world
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: UFW - allow incoming HTTPS from the world
+      community.general.ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: UFW - allow incoming SSH from machine1
+      community.general.ufw:
+        rule: allow
+        src: *machine2 ip*
+        port: '22'
+
+    - name: UFW - enable ufw
+      community.general.ufw:
+        state: enabled
+
+    - name: Reconfigure netplan to use DNS server on machine1
+      ansible.builtin.copy:
+        src: 01-network-manager-all.yaml
+        dest: /etc/netplan/01-network-manager-all.yaml
+        backup: yes
+
+    - name: apply netplan changes
+      command: sudo netplan apply
+      ignore_errors: true
+
+    - name: Restart apache2
+      service:
+        name: apache2
+        state: restarted
+
+    - name: update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400
